@@ -48,25 +48,38 @@ export class LangChainResearchAgent implements Agent {
     ];
   }
 
+  private async initializeAgent() {
+    if (this.executor) return;
+
+    const tools = this.getTools();
+
+    // Create the agent using createReactAgent
+    const agent = await createReactAgent({
+      llm: this.llm,
+      tools,
+    });
+
+    // Create the executor
+    this.executor = new AgentExecutor({
+      agent,
+      tools,
+      verbose: true,
+    });
+  }
+
   async research(query: string): Promise<string> {
     console.log(`\n[${this.name}] Starting research on: "${query}"`);
 
-    const tools = this.getTools();
-    const prompt =
-      "You are a helpful research assistant. Answer the following query: " +
-      query;
-
     try {
-      const response = await this.llm.invoke([
-        { role: "user", content: prompt },
-      ]);
-      const result =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
+      await this.initializeAgent();
+
+      // Use the agent executor - this enables tool use and reasoning
+      const response = await this.executor!.invoke({
+        input: query,
+      });
 
       console.log(`[${this.name}] Research completed`);
-      return result;
+      return response.output;
     } catch (error) {
       console.error(`[${this.name}] Error:`, error);
       return "Error conducting research";
